@@ -3,11 +3,16 @@ use derive_more::From;
 mod io;
 pub(self) mod phases;
 
+use io::{CoordinatorClient, ModelStore, PhaseIO, StateMachineIO};
 use phases::{Awaiting, NewRound, Phase, PhaseState, SerializableState, Sum, Sum2, Update};
 
-pub use phases::TransitionOutcome;
-
-use io::{CoordinatorClient, ModelStore, PhaseIO, StateMachineIO};
+/// A potential transition from one state to another.
+pub enum TransitionOutcome<IO> {
+    /// A transition is pending. The state machine has not changed
+    Pending(StateMachine<IO>),
+    /// A transition occured and resulted in this new state machine
+    Complete(StateMachine<IO>),
+}
 
 #[derive(From, Debug)]
 pub enum StateMachine<IO> {
@@ -24,11 +29,11 @@ where
 {
     pub async fn transition(self) -> TransitionOutcome<IO> {
         match self {
-            StateMachine::NewRound(phase) => phase.step().await.into(),
-            StateMachine::Awaiting(phase) => phase.step().await.into(),
-            StateMachine::Sum(phase) => phase.step().await.into(),
-            StateMachine::Update(phase) => phase.step().await.into(),
-            StateMachine::Sum2(phase) => phase.step().await.into(),
+            StateMachine::NewRound(phase) => phase.step().await,
+            StateMachine::Awaiting(phase) => phase.step().await,
+            StateMachine::Sum(phase) => phase.step().await,
+            StateMachine::Update(phase) => phase.step().await,
+            StateMachine::Sum2(phase) => phase.step().await,
         }
     }
 

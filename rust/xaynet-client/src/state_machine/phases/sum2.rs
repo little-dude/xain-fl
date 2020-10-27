@@ -5,8 +5,11 @@ use xaynet_core::{
     UpdateSeedDict,
 };
 
-use super::{Phase, Progress, SharedState, Step, Sum, TransitionOutcome};
-use crate::{state_machine::io::StateMachineIO, utils::multipart::MessageEncoder};
+use super::{Phase, Progress, SharedState, Step, Sum};
+use crate::{
+    state_machine::{io::StateMachineIO, TransitionOutcome},
+    MessageEncoder,
+};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Sum2 {

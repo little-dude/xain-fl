@@ -1,3 +1,5 @@
+use serde::{de::Error as SerdeError, Deserialize, Deserializer};
+use thiserror::Error;
 pub use xaynet_core::message::MESSAGE_HEADER_LENGTH;
 
 /// The minimum message payload size
@@ -17,9 +19,7 @@ pub struct InvalidMaxMessageSize;
 /// sent in several parts. Note that messages have a minimal size of
 /// [`MIN_MESSAGE_SIZE`].
 #[derive(Serialize, Deserialize, Clone, Copy, Debug)]
-pub struct MaxMessageSize(
-    #[serde(deserialize_with = "deserialize_max_message_size")] Option<usize>,
-);
+pub struct MaxMessageSize(#[serde(deserialize_with = "deserialize")] Option<usize>);
 
 impl Default for MaxMessageSize {
     fn default() -> Self {
@@ -58,7 +58,7 @@ impl MaxMessageSize {
     }
 }
 
-fn deserialize_max_message_size<'de, D>(deserializer: D) -> Result<Option<usize>, D::Error>
+fn deserialize<'de, D>(deserializer: D) -> Result<Option<usize>, D::Error>
 where
     D: Deserializer<'de>,
 {

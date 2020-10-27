@@ -5,6 +5,7 @@ extern crate serde;
 #[macro_use]
 extern crate tracing;
 
+mod message_encoder;
 mod settings;
 pub mod state_machine;
-mod utils;
+pub use message_encoder::MessageEncoder;

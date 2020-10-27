@@ -1,7 +1,7 @@
 use xaynet_core::crypto::{ByteObject, Signature};
 
-use super::{Phase, SharedState, Step, Sum, TransitionOutcome, Update};
-use crate::state_machine::io::StateMachineIO;
+use super::{Phase, SharedState, Step, Sum, Update};
+use crate::state_machine::{io::StateMachineIO, TransitionOutcome};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct NewRound;

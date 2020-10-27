@@ -6,8 +6,8 @@ use xaynet_core::{common::RoundParameters, crypto::SigningKeyPair, message::Payl
 use super::{Awaiting, NewRound, Sum, Sum2, Update};
 use crate::{
     settings::Settings,
-    state_machine::{io::StateMachineIO, StateMachine},
-    utils::multipart::MessageEncoder,
+    state_machine::{io::StateMachineIO, StateMachine, TransitionOutcome},
+    MessageEncoder,
 };
 
 #[derive(Debug)]
@@ -60,14 +60,6 @@ pub enum Progress<S, IO> {
     Continue(Phase<S, IO>),
     /// Progress has been made and resulted in this new state machine
     Updated(StateMachine<IO>),
-}
-
-/// A potential transition from one state to another.
-pub enum TransitionOutcome<T> {
-    /// A transition is pending. The state machine has not changed
-    Pending(StateMachine<T>),
-    /// A transition occured and resulted in this new state machine
-    Complete(StateMachine<T>),
 }
 
 impl<S, IO> Phase<S, IO>
@@ -142,6 +134,7 @@ where
         }
         Ok(())
     }
+
     pub(super) fn message_encoder(&self, payload: Payload) -> MessageEncoder {
         MessageEncoder::new(
             self.shared_state.keys.clone(),

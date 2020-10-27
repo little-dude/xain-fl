@@ -1,5 +1,5 @@
-use super::{Phase, SharedState, Step, TransitionOutcome};
-use crate::state_machine::StateMachineIO;
+use super::{Phase, SharedState, Step};
+use crate::state_machine::{StateMachineIO, TransitionOutcome};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Awaiting;
