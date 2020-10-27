@@ -1,11 +1,16 @@
 use derive_more::From;
 use thiserror::Error;
 
-use xaynet_core::{common::RoundParameters, crypto::SigningKeyPair, message::Payload};
+use xaynet_core::{
+    common::RoundParameters,
+    crypto::SigningKeyPair,
+    mask::MaskConfig,
+    message::Payload,
+};
 
 use super::{Awaiting, NewRound, Sum, Sum2, Update};
 use crate::{
-    settings::Settings,
+    settings::{MaxMessageSize, Settings},
     state_machine::{io::StateMachineIO, StateMachine, TransitionOutcome},
     MessageEncoder,
 };
@@ -35,9 +40,23 @@ pub struct Phase<P, IO> {
 /// Store for all the data that are common to all the phases
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SharedState {
-    pub settings: Settings,
     pub keys: SigningKeyPair,
+    pub mask_config: MaskConfig,
+    pub scalar: f64,
+    pub message_size: MaxMessageSize,
     pub round_params: RoundParameters,
+}
+
+impl SharedState {
+    pub fn new(settings: Settings) -> Self {
+        Self {
+            keys: settings.keys,
+            mask_config: settings.mask_config,
+            scalar: settings.scalar,
+            message_size: settings.max_message_size,
+            round_params: RoundParameters::default(),
+        }
+    }
 }
 
 /// Represent an atomic step performed by a phase. If the step results
@@ -150,8 +169,7 @@ where
             self.state.shared.round_params.pk,
             self.state
                 .shared
-                .settings
-                .max_message_size
+                .message_size
                 .max_payload_size()
                 .unwrap_or(0),
         )

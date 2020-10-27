@@ -139,7 +139,7 @@ where
         }
 
         info!("aggregating masks");
-        let config = self.state.shared.settings.aggregation.mask;
+        let config = self.state.shared.mask_config;
         let mask_len = self.state.phase.mask_length.unwrap();
         let mask_agg = Aggregation::new(config, config, mask_len as usize);
         for seed in self.state.phase.seeds.take().unwrap().into_iter() {

@@ -1,10 +1,12 @@
 use derive_more::From;
 
 mod io;
+pub use io::{CoordinatorClient, ModelStore, StateMachineIO};
 pub(self) mod phases;
 
-use io::{CoordinatorClient, ModelStore, PhaseIO, StateMachineIO};
-use phases::{Awaiting, NewRound, Phase, SerializableState, Sum, Sum2, Update};
+use crate::settings::Settings;
+use io::PhaseIO;
+use phases::{Awaiting, NewRound, Phase, SerializableState, SharedState, State, Sum, Sum2, Update};
 
 /// A potential transition from one state to another.
 pub enum TransitionOutcome<IO> {
@@ -53,6 +55,12 @@ where
     T: CoordinatorClient,
     U: ModelStore,
 {
+    pub fn new(settings: Settings, coordinator: T, model_store: U) -> Self {
+        let io = PhaseIO::new(coordinator, model_store);
+        let state = State::new(SharedState::new(settings), Awaiting);
+        Phase::<_, _>::new(state, io).into()
+    }
+
     pub fn restore(state: SerializableState, coordinator: T, model_store: U) -> Self {
         let io = PhaseIO::new(coordinator, model_store);
         match state {

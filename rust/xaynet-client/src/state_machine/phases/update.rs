@@ -140,10 +140,10 @@ where
         if self.state.phase.has_masked_model() {
             return Progress::Continue(self);
         }
-        let masking_config = self.state.shared.settings.aggregation.mask;
-        let masker = Masker::new(masking_config, masking_config);
+        let config = self.state.shared.mask_config;
+        let masker = Masker::new(config, config);
         let model = self.state.phase.model.take().unwrap();
-        let scalar = self.state.shared.settings.aggregation.scalar;
+        let scalar = self.state.shared.scalar;
         self.state.phase.mask = Some(masker.mask(scalar, model));
         Progress::Updated(self.into())
     }
