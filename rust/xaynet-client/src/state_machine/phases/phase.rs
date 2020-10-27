@@ -10,12 +10,23 @@ use crate::{
     MessageEncoder,
 };
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct State<P> {
+    /// data specific to the current phase
+    pub phase: P,
+    /// data common to most of the phases
+    pub shared: SharedState,
+}
+
+impl<P> State<P> {
+    pub fn new(shared: SharedState, phase: P) -> Self {
+        Self { shared, phase }
+    }
+}
+
 #[derive(Debug)]
-pub struct Phase<S, IO> {
-    /// State that is specific to this phase
-    pub phase_state: S,
-    /// State shared by all the phases
-    pub shared_state: SharedState,
+pub struct Phase<P, IO> {
+    pub state: State<P>,
     /// Opaque client for performing IO tasks: talking with the
     /// coordinator API, loading models, etc.
     pub io: IO,
@@ -53,19 +64,19 @@ macro_rules! try_progress {
 }
 
 /// Represent the presence of absence of progress being made during a phase.
-pub enum Progress<S, IO> {
+pub enum Progress<P, IO> {
     /// No progress can be made currently.
-    Stuck(Phase<S, IO>),
+    Stuck(Phase<P, IO>),
     /// More work needs to be done for progress to be made
-    Continue(Phase<S, IO>),
+    Continue(Phase<P, IO>),
     /// Progress has been made and resulted in this new state machine
     Updated(StateMachine<IO>),
 }
 
-impl<S, IO> Phase<S, IO>
+impl<P, IO> Phase<P, IO>
 where
     IO: StateMachineIO,
-    Phase<S, IO>: Step<IO> + Into<StateMachine<IO>>,
+    Phase<P, IO>: Step<IO> + Into<StateMachine<IO>>,
 {
     pub async fn step(mut self) -> TransitionOutcome<IO> {
         match self.check_round_freshness().await {
@@ -73,7 +84,8 @@ where
             RoundFreshness::Outdated => {
                 info!("a new round started: updating the round parameters and resetting the state machine");
                 TransitionOutcome::Complete(
-                    Phase::<NewRound, IO>::new(self.shared_state, self.io).into(),
+                    Phase::<NewRound, IO>::new(State::new(self.state.shared, NewRound), self.io)
+                        .into(),
                 )
             }
             RoundFreshness::Fresh => {
@@ -90,12 +102,12 @@ where
                 RoundFreshness::Unknown
             }
             Ok(params) => {
-                if params == self.shared_state.round_params {
+                if params == self.state.shared.round_params {
                     debug!("round parameters didn't change");
                     RoundFreshness::Fresh
                 } else {
                     info!("fetched fresh round parameters");
-                    self.shared_state.round_params = params;
+                    self.state.shared.round_params = params;
                     RoundFreshness::Outdated
                 }
             }
@@ -103,22 +115,18 @@ where
     }
 }
 
-impl<S, IO> Phase<S, IO> {
-    pub fn restore(shared_state: SharedState, phase_state: S, io: IO) -> Self {
-        Self {
-            shared_state,
-            phase_state,
-            io,
-        }
+impl<P, IO> Phase<P, IO> {
+    pub fn new(state: State<P>, io: IO) -> Self {
+        Self { state, io }
     }
 }
 
-impl<S, IO> Phase<S, IO>
+impl<P, IO> Phase<P, IO>
 where
     IO: StateMachineIO,
 {
     pub(super) fn into_awaiting(self) -> Phase<Awaiting, IO> {
-        Phase::<Awaiting, IO>::new(self.shared_state, self.io)
+        Phase::<Awaiting, IO>::new(State::new(self.state.shared, Awaiting), self.io)
     }
 
     pub(super) async fn send_message(
@@ -126,7 +134,7 @@ where
         encoder: MessageEncoder,
     ) -> Result<(), SendMessageError> {
         for part in encoder {
-            let data = self.shared_state.round_params.pk.encrypt(part.as_slice());
+            let data = self.state.shared.round_params.pk.encrypt(part.as_slice());
             self.io.send_message(data).await.map_err(|e| {
                 error!("failed to send message: {:?}", e);
                 SendMessageError
@@ -137,10 +145,11 @@ where
 
     pub(super) fn message_encoder(&self, payload: Payload) -> MessageEncoder {
         MessageEncoder::new(
-            self.shared_state.keys.clone(),
+            self.state.shared.keys.clone(),
             payload,
-            self.shared_state.round_params.pk,
-            self.shared_state
+            self.state.shared.round_params.pk,
+            self.state
+                .shared
                 .settings
                 .max_message_size
                 .max_payload_size()
@@ -163,29 +172,21 @@ pub enum RoundFreshness {
     Fresh,
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct SerializableState {
-    pub shared: SharedState,
-    pub phase: PhaseState,
-}
-
+/// A serializable representation of a phase state.
 #[derive(Serialize, Deserialize, From)]
-pub enum PhaseState {
-    NewRound(NewRound),
-    Awaiting(Awaiting),
-    Sum(Sum),
-    Update(Update),
-    Sum2(Sum2),
+pub enum SerializableState {
+    NewRound(State<NewRound>),
+    Awaiting(State<Awaiting>),
+    Sum(State<Sum>),
+    Update(State<Update>),
+    Sum2(State<Sum2>),
 }
 
-impl<IO, T> Into<SerializableState> for Phase<T, IO>
+impl<IO, P> Into<SerializableState> for Phase<P, IO>
 where
-    T: Into<PhaseState>,
+    State<P>: Into<SerializableState>,
 {
     fn into(self) -> SerializableState {
-        SerializableState {
-            shared: self.shared_state,
-            phase: self.phase_state.into(),
-        }
+        self.state.into()
     }
 }

@@ -5,7 +5,7 @@ use xaynet_core::{
     UpdateSeedDict,
 };
 
-use super::{Phase, Progress, SharedState, Step, Sum};
+use super::{Phase, Progress, Step};
 use crate::{
     state_machine::{io::StateMachineIO, TransitionOutcome},
     MessageEncoder,
@@ -22,11 +22,11 @@ pub struct Sum2 {
     message: Option<MessageEncoder>,
 }
 
-impl From<Sum> for Sum2 {
-    fn from(sum: Sum) -> Self {
+impl Sum2 {
+    pub fn new(ephm_keys: EncryptKeyPair, sum_signature: Signature) -> Self {
         Self {
-            ephm_keys: sum.ephm_keys,
-            sum_signature: sum.sum_signature,
+            ephm_keys,
+            sum_signature,
             seed_dict: None,
             seeds: None,
             mask: None,
@@ -62,16 +62,8 @@ impl<IO> Phase<Sum2, IO>
 where
     IO: StateMachineIO,
 {
-    pub fn new(shared_state: SharedState, io: IO, sum: Sum) -> Self {
-        Self {
-            shared_state,
-            io,
-            phase_state: sum.into(),
-        }
-    }
-
     async fn fetch_mask_length(mut self) -> Progress<Sum2, IO> {
-        if self.phase_state.has_fetched_mask_length() {
+        if self.state.phase.has_fetched_mask_length() {
             return Progress::Continue(self);
         }
 
@@ -86,18 +78,18 @@ where
                 Progress::Stuck(self)
             }
             Ok(Some(length)) => {
-                self.phase_state.mask_length = Some(length);
+                self.state.phase.mask_length = Some(length);
                 Progress::Updated(self.into())
             }
         }
     }
 
     async fn fetch_seed_dict(mut self) -> Progress<Sum2, IO> {
-        if self.phase_state.has_fetched_seed_dict() {
+        if self.state.phase.has_fetched_seed_dict() {
             return Progress::Continue(self);
         }
         debug!("polling for update seeds");
-        match self.io.get_seeds(self.shared_state.keys.public).await {
+        match self.io.get_seeds(self.state.shared.keys.public).await {
             Err(e) => {
                 warn!("failed to fetch seeds: {}", e);
                 Progress::Stuck(self)
@@ -107,20 +99,21 @@ where
                 Progress::Stuck(self)
             }
             Ok(Some(seeds)) => {
-                self.phase_state.seed_dict = Some(seeds);
+                self.state.phase.seed_dict = Some(seeds);
                 Progress::Updated(self.into())
             }
         }
     }
 
     fn decrypt_seeds(mut self) -> Progress<Sum2, IO> {
-        if self.phase_state.has_decrypted_seeds() {
+        if self.state.phase.has_decrypted_seeds() {
             return Progress::Continue(self);
         }
 
-        let keys = &self.phase_state.ephm_keys;
+        let keys = &self.state.phase.ephm_keys;
         let seeds: Result<Vec<MaskSeed>, ()> = self
-            .phase_state
+            .state
+            .phase
             .seed_dict
             .take()
             .unwrap()
@@ -130,7 +123,7 @@ where
 
         match seeds {
             Ok(seeds) => {
-                self.phase_state.seeds = Some(seeds);
+                self.state.phase.seeds = Some(seeds);
                 Progress::Updated(self.into())
             }
             Err(_) => {
@@ -141,15 +134,15 @@ where
     }
 
     fn aggregate_masks(mut self) -> Progress<Sum2, IO> {
-        if self.phase_state.has_aggregated_masks() {
+        if self.state.phase.has_aggregated_masks() {
             return Progress::Continue(self);
         }
 
         info!("aggregating masks");
-        let config = self.shared_state.settings.aggregation.mask;
-        let mask_len = self.phase_state.mask_length.unwrap();
+        let config = self.state.shared.settings.aggregation.mask;
+        let mask_len = self.state.phase.mask_length.unwrap();
         let mask_agg = Aggregation::new(config, config, mask_len as usize);
-        for seed in self.phase_state.seeds.take().unwrap().into_iter() {
+        for seed in self.state.phase.seeds.take().unwrap().into_iter() {
             let mask = seed.derive_mask(mask_len as usize, config, config);
             if let Err(e) = mask_agg.validate_aggregation(&mask) {
                 error!("sum2 phase failed: cannot aggregate masks: {}", e);
@@ -157,20 +150,20 @@ where
                 return Progress::Updated(self.into_awaiting().into());
             }
         }
-        self.phase_state.mask = Some(mask_agg.into());
+        self.state.phase.mask = Some(mask_agg.into());
         Progress::Updated(self.into())
     }
 
     fn compose_sum2_message(mut self) -> Progress<Sum2, IO> {
-        if self.phase_state.has_composed_message() {
+        if self.state.phase.has_composed_message() {
             return Progress::Continue(self);
         }
 
         let sum2 = Sum2Message {
-            sum_signature: self.phase_state.sum_signature,
-            model_mask: self.phase_state.mask.take().unwrap(),
+            sum_signature: self.state.phase.sum_signature,
+            model_mask: self.state.phase.mask.take().unwrap(),
         };
-        self.phase_state.message = Some(self.message_encoder(sum2.into()));
+        self.state.phase.message = Some(self.message_encoder(sum2.into()));
         Progress::Updated(self.into())
     }
 }
@@ -190,7 +183,7 @@ where
 
         // FIXME: currently if sending fails, we lose the message,
         // thus wasting all the work we've done in this phase
-        let message = self.phase_state.message.take().unwrap();
+        let message = self.state.phase.message.take().unwrap();
         match self.send_message(message).await {
             Ok(_) => {
                 info!("sent sum2 message");

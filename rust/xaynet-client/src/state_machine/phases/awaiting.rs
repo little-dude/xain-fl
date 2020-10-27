@@ -1,4 +1,4 @@
-use super::{Phase, SharedState, Step};
+use super::{Phase, Step};
 use crate::state_machine::{StateMachineIO, TransitionOutcome};
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -12,15 +12,5 @@ where
     async fn step(mut self) -> TransitionOutcome<IO> {
         info!("awaiting task");
         return TransitionOutcome::Pending(self.into());
-    }
-}
-
-impl<IO> Phase<Awaiting, IO> {
-    pub fn new(shared_state: SharedState, io: IO) -> Self {
-        Phase {
-            shared_state,
-            io,
-            phase_state: Awaiting,
-        }
     }
 }

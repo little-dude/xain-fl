@@ -7,7 +7,7 @@ use xaynet_core::{
     SumDict,
 };
 
-use super::{Phase, Progress, SharedState, Step};
+use super::{Phase, Progress, Step};
 use crate::{
     state_machine::{io::StateMachineIO, TransitionOutcome},
     MessageEncoder,
@@ -25,7 +25,7 @@ pub struct Update {
 }
 
 impl Update {
-    fn new(sum_signature: Signature, update_signature: Signature) -> Self {
+    pub fn new(sum_signature: Signature, update_signature: Signature) -> Self {
         Update {
             sum_signature,
             update_signature,
@@ -72,7 +72,7 @@ where
 
         // FIXME: currently if sending fails, we lose the message,
         // thus wasting all the work we've done in this phase
-        let message = self.phase_state.message.take().unwrap();
+        let message = self.state.phase.message.take().unwrap();
         match self.send_message(message).await {
             Ok(_) => {
                 info!("sent update message");
@@ -92,26 +92,14 @@ impl<IO> Phase<Update, IO>
 where
     IO: StateMachineIO,
 {
-    pub fn new(
-        shared_state: SharedState,
-        io: IO,
-        sum_signature: Signature,
-        update_signature: Signature,
-    ) -> Self {
-        Self {
-            shared_state,
-            io,
-            phase_state: Update::new(sum_signature, update_signature),
-        }
-    }
     async fn fetch_sum_dict(mut self) -> Progress<Update, IO> {
-        if self.phase_state.has_fetched_sum_dict() {
+        if self.state.phase.has_fetched_sum_dict() {
             return Progress::Continue(self);
         }
         debug!("fetching sum dictionary");
         match self.io.get_sums().await {
             Ok(Some(dict)) => {
-                self.phase_state.sum_dict = Some(dict);
+                self.state.phase.sum_dict = Some(dict);
                 Progress::Updated(self.into())
             }
             Ok(None) => {
@@ -126,14 +114,14 @@ where
     }
 
     async fn load_model(mut self) -> Progress<Update, IO> {
-        if self.phase_state.has_loaded_model() {
+        if self.state.phase.has_loaded_model() {
             return Progress::Continue(self);
         }
 
         debug!("loading local model");
         match self.io.load_model().await {
             Ok(Some(model)) => {
-                self.phase_state.model = Some(model);
+                self.state.phase.model = Some(model);
                 Progress::Updated(self.into())
             }
             Ok(None) => {
@@ -149,45 +137,46 @@ where
 
     /// Generate a mask seed and mask a local model.
     fn mask_model(mut self) -> Progress<Update, IO> {
-        if self.phase_state.has_masked_model() {
+        if self.state.phase.has_masked_model() {
             return Progress::Continue(self);
         }
-        let masking_config = self.shared_state.settings.aggregation.mask;
+        let masking_config = self.state.shared.settings.aggregation.mask;
         let masker = Masker::new(masking_config, masking_config);
-        let model = self.phase_state.model.take().unwrap();
-        let scalar = self.shared_state.settings.aggregation.scalar;
-        self.phase_state.mask = Some(masker.mask(scalar, model));
+        let model = self.state.phase.model.take().unwrap();
+        let scalar = self.state.shared.settings.aggregation.scalar;
+        self.state.phase.mask = Some(masker.mask(scalar, model));
         Progress::Updated(self.into())
     }
 
     // Create a local seed dictionary from a sum dictionary.
     fn build_seed_dict(mut self) -> Progress<Update, IO> {
-        if self.phase_state.has_built_seed_dict() {
+        if self.state.phase.has_built_seed_dict() {
             return Progress::Continue(self);
         }
-        let mask_seed = &self.phase_state.mask.as_ref().unwrap().0;
+        let mask_seed = &self.state.phase.mask.as_ref().unwrap().0;
         debug!("building local seed dictionary");
         let seeds = self
-            .phase_state
+            .state
+            .phase
             .sum_dict
             .take()
             .unwrap()
             .into_iter()
             .map(|(pk, ephm_pk)| (pk, mask_seed.encrypt(&ephm_pk)))
             .collect();
-        self.phase_state.seed_dict = Some(seeds);
+        self.state.phase.seed_dict = Some(seeds);
         Progress::Updated(self.into())
     }
 
     fn compose_update_message(mut self) -> Progress<Update, IO> {
         debug!("composing update message");
         let update = UpdateMessage {
-            sum_signature: self.phase_state.sum_signature,
-            update_signature: self.phase_state.update_signature,
-            masked_model: self.phase_state.mask.take().unwrap().1,
-            local_seed_dict: self.phase_state.seed_dict.take().unwrap(),
+            sum_signature: self.state.phase.sum_signature,
+            update_signature: self.state.phase.update_signature,
+            masked_model: self.state.phase.mask.take().unwrap().1,
+            local_seed_dict: self.state.phase.seed_dict.take().unwrap(),
         };
-        self.phase_state.message = Some(self.message_encoder(update.into()));
+        self.state.phase.message = Some(self.message_encoder(update.into()));
         Progress::Updated(self.into())
     }
 }

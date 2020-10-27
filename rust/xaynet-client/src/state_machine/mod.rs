@@ -4,7 +4,7 @@ mod io;
 pub(self) mod phases;
 
 use io::{CoordinatorClient, ModelStore, PhaseIO, StateMachineIO};
-use phases::{Awaiting, NewRound, Phase, PhaseState, SerializableState, Sum, Sum2, Update};
+use phases::{Awaiting, NewRound, Phase, SerializableState, Sum, Sum2, Update};
 
 /// A potential transition from one state to another.
 pub enum TransitionOutcome<IO> {
@@ -37,13 +37,13 @@ where
         }
     }
 
-    pub fn save(self) -> PhaseState {
+    pub fn save(self) -> SerializableState {
         match self {
-            StateMachine::NewRound(phase) => phase.phase_state.into(),
-            StateMachine::Awaiting(phase) => phase.phase_state.into(),
-            StateMachine::Sum(phase) => phase.phase_state.into(),
-            StateMachine::Update(phase) => phase.phase_state.into(),
-            StateMachine::Sum2(phase) => phase.phase_state.into(),
+            StateMachine::NewRound(phase) => phase.state.into(),
+            StateMachine::Awaiting(phase) => phase.state.into(),
+            StateMachine::Sum(phase) => phase.state.into(),
+            StateMachine::Update(phase) => phase.state.into(),
+            StateMachine::Sum2(phase) => phase.state.into(),
         }
     }
 }
@@ -55,22 +55,17 @@ where
 {
     pub fn restore(state: SerializableState, coordinator: T, model_store: U) -> Self {
         let io = PhaseIO::new(coordinator, model_store);
-        let SerializableState { shared, phase } = state;
-        match phase {
-            PhaseState::NewRound(phase_state) => {
-                Phase::<NewRound, PhaseIO<T, U>>::restore(shared, phase_state, io).into()
+        match state {
+            SerializableState::NewRound(state) => {
+                Phase::<NewRound, PhaseIO<T, U>>::new(state, io).into()
             }
-            PhaseState::Awaiting(phase_state) => {
-                Phase::<Awaiting, PhaseIO<T, U>>::restore(shared, phase_state, io).into()
+            SerializableState::Awaiting(state) => {
+                Phase::<Awaiting, PhaseIO<T, U>>::new(state, io).into()
             }
-            PhaseState::Sum(phase_state) => {
-                Phase::<Sum, PhaseIO<T, U>>::restore(shared, phase_state, io).into()
-            }
-            PhaseState::Sum2(phase_state) => {
-                Phase::<Sum2, PhaseIO<T, U>>::restore(shared, phase_state, io).into()
-            }
-            PhaseState::Update(phase_state) => {
-                Phase::<Update, PhaseIO<T, U>>::restore(shared, phase_state, io).into()
+            SerializableState::Sum(state) => Phase::<Sum, PhaseIO<T, U>>::new(state, io).into(),
+            SerializableState::Sum2(state) => Phase::<Sum2, PhaseIO<T, U>>::new(state, io).into(),
+            SerializableState::Update(state) => {
+                Phase::<Update, PhaseIO<T, U>>::new(state, io).into()
             }
         }
     }

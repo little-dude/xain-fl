@@ -1,6 +1,6 @@
 use xaynet_core::crypto::{ByteObject, Signature};
 
-use super::{Phase, SharedState, Step, Sum, Update};
+use super::{Phase, State, Step, Sum, Update};
 use crate::state_machine::{io::StateMachineIO, TransitionOutcome};
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -16,14 +16,14 @@ where
 
         info!("checking eligibility for sum task");
         let sum_signature = self.sign(b"sum");
-        if sum_signature.is_eligible(self.shared_state.round_params.sum) {
+        if sum_signature.is_eligible(self.state.shared.round_params.sum) {
             info!("eligible for sum task");
             return TransitionOutcome::Complete(self.into_sum(sum_signature).into());
         }
 
         info!("not eligible for sum task, checking eligibility for update task");
         let update_signature = self.sign(b"update");
-        if update_signature.is_eligible(self.shared_state.round_params.update) {
+        if update_signature.is_eligible(self.state.shared.round_params.update) {
             info!("eligible for update task");
             return TransitionOutcome::Complete(
                 self.into_update(sum_signature, update_signature).into(),
@@ -39,22 +39,15 @@ impl<IO> Phase<NewRound, IO>
 where
     IO: StateMachineIO,
 {
-    pub fn new(shared_state: SharedState, io: IO) -> Self {
-        Phase {
-            shared_state,
-            io,
-            phase_state: NewRound,
-        }
-    }
-
     fn sign(&self, data: &[u8]) -> Signature {
-        let sk = &self.shared_state.keys.secret;
-        let seed = self.shared_state.round_params.seed.as_slice();
+        let sk = &self.state.shared.keys.secret;
+        let seed = self.state.shared.round_params.seed.as_slice();
         sk.sign_detached(&[seed, data].concat())
     }
 
     fn into_sum(self, sum_signature: Signature) -> Phase<Sum, IO> {
-        Phase::<Sum, IO>::new(self.shared_state, self.io, sum_signature)
+        let sum = Sum::new(sum_signature);
+        Phase::<Sum, IO>::new(State::new(self.state.shared, sum), self.io)
     }
 
     fn into_update(
@@ -62,6 +55,7 @@ where
         sum_signature: Signature,
         update_signature: Signature,
     ) -> Phase<Update, IO> {
-        Phase::<Update, IO>::new(self.shared_state, self.io, sum_signature, update_signature)
+        let update = Update::new(sum_signature, update_signature);
+        Phase::<Update, IO>::new(State::new(self.state.shared, update), self.io)
     }
 }

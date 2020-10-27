@@ -3,7 +3,7 @@ use xaynet_core::{
     message::Sum as SumMessage,
 };
 
-use super::{Phase, Progress, SharedState, Step, Sum2};
+use super::{Phase, Progress, State, Step, Sum2};
 use crate::{
     state_machine::{io::StateMachineIO, TransitionOutcome},
     MessageEncoder,
@@ -14,6 +14,16 @@ pub struct Sum {
     pub ephm_keys: EncryptKeyPair,
     pub sum_signature: Signature,
     pub message: Option<MessageEncoder>,
+}
+
+impl Sum {
+    pub fn new(sum_signature: Signature) -> Self {
+        Sum {
+            ephm_keys: EncryptKeyPair::generate(),
+            sum_signature,
+            message: None,
+        }
+    }
 }
 
 #[async_trait]
@@ -28,7 +38,7 @@ where
 
         // FIXME: currently if sending fails, we lose the message,
         // thus wasting all the work we've done in this phase
-        let message = self.phase_state.message.take().unwrap();
+        let message = self.state.phase.message.take().unwrap();
         match self.send_message(message).await {
             Ok(_) => {
                 info!("sent sum message, going to sum2 phase");
@@ -47,32 +57,21 @@ impl<IO> Phase<Sum, IO>
 where
     IO: StateMachineIO,
 {
-    pub fn new(shared_state: SharedState, io: IO, sum_signature: Signature) -> Self {
-        Self {
-            phase_state: Sum {
-                ephm_keys: EncryptKeyPair::generate(),
-                sum_signature,
-                message: None,
-            },
-            shared_state,
-            io,
-        }
-    }
-
     pub fn compose_sum_message(mut self) -> Progress<Sum, IO> {
-        if self.phase_state.message.is_some() {
+        if self.state.phase.message.is_some() {
             return Progress::Continue(self);
         }
 
         let sum = SumMessage {
-            sum_signature: self.phase_state.sum_signature,
-            ephm_pk: self.phase_state.ephm_keys.public,
+            sum_signature: self.state.phase.sum_signature,
+            ephm_pk: self.state.phase.ephm_keys.public,
         };
-        self.phase_state.message = Some(self.message_encoder(sum.into()));
+        self.state.phase.message = Some(self.message_encoder(sum.into()));
         Progress::Updated(self.into())
     }
 
     pub fn into_sum2(self) -> Phase<Sum2, IO> {
-        Phase::<Sum2, IO>::new(self.shared_state, self.io, self.phase_state)
+        let sum2 = Sum2::new(self.state.phase.ephm_keys, self.state.phase.sum_signature);
+        Phase::<Sum2, IO>::new(State::new(self.state.shared, sum2), self.io)
     }
 }
