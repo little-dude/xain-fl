@@ -178,6 +178,8 @@ pub enum SerializableState {
     NewRound(State<NewRound>),
     Awaiting(State<Awaiting>),
     Sum(State<Sum>),
+    // FIXME: this should be boxed...
+    #[allow(clippy::large_enum_variant)]
     Update(State<Update>),
     Sum2(State<Sum2>),
 }
