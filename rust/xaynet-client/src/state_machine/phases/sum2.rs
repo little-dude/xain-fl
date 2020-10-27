@@ -57,7 +57,7 @@ impl Sum2 {
 
 impl Phase<Sum2> {
     async fn fetch_mask_length(mut self) -> Progress<Sum2> {
-        if self.state.phase.has_fetched_mask_length() {
+        if self.state.private.has_fetched_mask_length() {
             return Progress::Continue(self);
         }
 
@@ -72,14 +72,14 @@ impl Phase<Sum2> {
                 Progress::Stuck(self)
             }
             Ok(Some(length)) => {
-                self.state.phase.mask_length = Some(length);
+                self.state.private.mask_length = Some(length);
                 Progress::Updated(self.into())
             }
         }
     }
 
     async fn fetch_seed_dict(mut self) -> Progress<Sum2> {
-        if self.state.phase.has_fetched_seed_dict() {
+        if self.state.private.has_fetched_seed_dict() {
             return Progress::Continue(self);
         }
         debug!("polling for update seeds");
@@ -93,21 +93,21 @@ impl Phase<Sum2> {
                 Progress::Stuck(self)
             }
             Ok(Some(seeds)) => {
-                self.state.phase.seed_dict = Some(seeds);
+                self.state.private.seed_dict = Some(seeds);
                 Progress::Updated(self.into())
             }
         }
     }
 
     fn decrypt_seeds(mut self) -> Progress<Sum2> {
-        if self.state.phase.has_decrypted_seeds() {
+        if self.state.private.has_decrypted_seeds() {
             return Progress::Continue(self);
         }
 
-        let keys = &self.state.phase.ephm_keys;
+        let keys = &self.state.private.ephm_keys;
         let seeds: Result<Vec<MaskSeed>, ()> = self
             .state
-            .phase
+            .private
             .seed_dict
             .take()
             .unwrap()
@@ -117,7 +117,7 @@ impl Phase<Sum2> {
 
         match seeds {
             Ok(seeds) => {
-                self.state.phase.seeds = Some(seeds);
+                self.state.private.seeds = Some(seeds);
                 Progress::Updated(self.into())
             }
             Err(_) => {
@@ -128,15 +128,15 @@ impl Phase<Sum2> {
     }
 
     fn aggregate_masks(mut self) -> Progress<Sum2> {
-        if self.state.phase.has_aggregated_masks() {
+        if self.state.private.has_aggregated_masks() {
             return Progress::Continue(self);
         }
 
         info!("aggregating masks");
         let config = self.state.shared.mask_config;
-        let mask_len = self.state.phase.mask_length.unwrap();
+        let mask_len = self.state.private.mask_length.unwrap();
         let mask_agg = Aggregation::new(config, config, mask_len as usize);
-        for seed in self.state.phase.seeds.take().unwrap().into_iter() {
+        for seed in self.state.private.seeds.take().unwrap().into_iter() {
             let mask = seed.derive_mask(mask_len as usize, config, config);
             if let Err(e) = mask_agg.validate_aggregation(&mask) {
                 error!("sum2 phase failed: cannot aggregate masks: {}", e);
@@ -144,20 +144,20 @@ impl Phase<Sum2> {
                 return Progress::Updated(self.into_awaiting().into());
             }
         }
-        self.state.phase.mask = Some(mask_agg.into());
+        self.state.private.mask = Some(mask_agg.into());
         Progress::Updated(self.into())
     }
 
     fn compose_sum2_message(mut self) -> Progress<Sum2> {
-        if self.state.phase.has_composed_message() {
+        if self.state.private.has_composed_message() {
             return Progress::Continue(self);
         }
 
         let sum2 = Sum2Message {
-            sum_signature: self.state.phase.sum_signature,
-            model_mask: self.state.phase.mask.take().unwrap(),
+            sum_signature: self.state.private.sum_signature,
+            model_mask: self.state.private.mask.take().unwrap(),
         };
-        self.state.phase.message = Some(self.message_encoder(sum2.into()));
+        self.state.private.message = Some(self.message_encoder(sum2.into()));
         Progress::Updated(self.into())
     }
 }
@@ -174,7 +174,7 @@ impl Step for Phase<Sum2> {
 
         // FIXME: currently if sending fails, we lose the message,
         // thus wasting all the work we've done in this phase
-        let message = self.state.phase.message.take().unwrap();
+        let message = self.state.private.message.take().unwrap();
         match self.send_message(message).await {
             Ok(_) => {
                 info!("sent sum2 message");

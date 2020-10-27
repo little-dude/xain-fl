@@ -68,7 +68,7 @@ impl Step for Phase<Update> {
 
         // FIXME: currently if sending fails, we lose the message,
         // thus wasting all the work we've done in this phase
-        let message = self.state.phase.message.take().unwrap();
+        let message = self.state.private.message.take().unwrap();
         match self.send_message(message).await {
             Ok(_) => {
                 info!("sent update message");
@@ -86,13 +86,13 @@ impl Step for Phase<Update> {
 
 impl Phase<Update> {
     async fn fetch_sum_dict(mut self) -> Progress<Update> {
-        if self.state.phase.has_fetched_sum_dict() {
+        if self.state.private.has_fetched_sum_dict() {
             return Progress::Continue(self);
         }
         debug!("fetching sum dictionary");
         match self.io.get_sums().await {
             Ok(Some(dict)) => {
-                self.state.phase.sum_dict = Some(dict);
+                self.state.private.sum_dict = Some(dict);
                 Progress::Updated(self.into())
             }
             Ok(None) => {
@@ -107,14 +107,14 @@ impl Phase<Update> {
     }
 
     async fn load_model(mut self) -> Progress<Update> {
-        if self.state.phase.has_loaded_model() {
+        if self.state.private.has_loaded_model() {
             return Progress::Continue(self);
         }
 
         debug!("loading local model");
         match self.io.load_model().await {
             Ok(Some(model)) => {
-                self.state.phase.model = Some(model);
+                self.state.private.model = Some(model);
                 Progress::Updated(self.into())
             }
             Ok(None) => {
@@ -130,46 +130,46 @@ impl Phase<Update> {
 
     /// Generate a mask seed and mask a local model.
     fn mask_model(mut self) -> Progress<Update> {
-        if self.state.phase.has_masked_model() {
+        if self.state.private.has_masked_model() {
             return Progress::Continue(self);
         }
         let config = self.state.shared.mask_config;
         let masker = Masker::new(config, config);
-        let model = self.state.phase.model.take().unwrap();
+        let model = self.state.private.model.take().unwrap();
         let scalar = self.state.shared.scalar;
-        self.state.phase.mask = Some(masker.mask(scalar, model));
+        self.state.private.mask = Some(masker.mask(scalar, model));
         Progress::Updated(self.into())
     }
 
     // Create a local seed dictionary from a sum dictionary.
     fn build_seed_dict(mut self) -> Progress<Update> {
-        if self.state.phase.has_built_seed_dict() {
+        if self.state.private.has_built_seed_dict() {
             return Progress::Continue(self);
         }
-        let mask_seed = &self.state.phase.mask.as_ref().unwrap().0;
+        let mask_seed = &self.state.private.mask.as_ref().unwrap().0;
         debug!("building local seed dictionary");
         let seeds = self
             .state
-            .phase
+            .private
             .sum_dict
             .take()
             .unwrap()
             .into_iter()
             .map(|(pk, ephm_pk)| (pk, mask_seed.encrypt(&ephm_pk)))
             .collect();
-        self.state.phase.seed_dict = Some(seeds);
+        self.state.private.seed_dict = Some(seeds);
         Progress::Updated(self.into())
     }
 
     fn compose_update_message(mut self) -> Progress<Update> {
         debug!("composing update message");
         let update = UpdateMessage {
-            sum_signature: self.state.phase.sum_signature,
-            update_signature: self.state.phase.update_signature,
-            masked_model: self.state.phase.mask.take().unwrap().1,
-            local_seed_dict: self.state.phase.seed_dict.take().unwrap(),
+            sum_signature: self.state.private.sum_signature,
+            update_signature: self.state.private.update_signature,
+            masked_model: self.state.private.mask.take().unwrap().1,
+            local_seed_dict: self.state.private.seed_dict.take().unwrap(),
         };
-        self.state.phase.message = Some(self.message_encoder(update.into()));
+        self.state.private.message = Some(self.message_encoder(update.into()));
         Progress::Updated(self.into())
     }
 }

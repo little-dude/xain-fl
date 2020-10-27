@@ -34,7 +34,7 @@ impl Step for Phase<Sum> {
 
         // FIXME: currently if sending fails, we lose the message,
         // thus wasting all the work we've done in this phase
-        let message = self.state.phase.message.take().unwrap();
+        let message = self.state.private.message.take().unwrap();
         match self.send_message(message).await {
             Ok(_) => {
                 info!("sent sum message, going to sum2 phase");
@@ -51,20 +51,23 @@ impl Step for Phase<Sum> {
 
 impl Phase<Sum> {
     pub fn compose_sum_message(mut self) -> Progress<Sum> {
-        if self.state.phase.message.is_some() {
+        if self.state.private.message.is_some() {
             return Progress::Continue(self);
         }
 
         let sum = SumMessage {
-            sum_signature: self.state.phase.sum_signature,
-            ephm_pk: self.state.phase.ephm_keys.public,
+            sum_signature: self.state.private.sum_signature,
+            ephm_pk: self.state.private.ephm_keys.public,
         };
-        self.state.phase.message = Some(self.message_encoder(sum.into()));
+        self.state.private.message = Some(self.message_encoder(sum.into()));
         Progress::Updated(self.into())
     }
 
     pub fn into_sum2(self) -> Phase<Sum2> {
-        let sum2 = Sum2::new(self.state.phase.ephm_keys, self.state.phase.sum_signature);
+        let sum2 = Sum2::new(
+            self.state.private.ephm_keys,
+            self.state.private.sum_signature,
+        );
         Phase::<Sum2>::new(State::new(self.state.shared, sum2), self.io)
     }
 }

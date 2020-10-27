@@ -18,14 +18,14 @@ use crate::{
 #[derive(Debug, Serialize, Deserialize)]
 pub struct State<P> {
     /// data specific to the current phase
-    pub phase: P,
+    pub private: P,
     /// data common to most of the phases
     pub shared: SharedState,
 }
 
 impl<P> State<P> {
-    pub fn new(shared: SharedState, phase: P) -> Self {
-        Self { shared, phase }
+    pub fn new(shared: SharedState, private: P) -> Self {
+        Self { shared, private }
     }
 }
 
