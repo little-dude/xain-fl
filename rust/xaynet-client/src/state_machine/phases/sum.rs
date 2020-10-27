@@ -3,8 +3,10 @@ use xaynet_core::{
     message::Sum as SumMessage,
 };
 
-use super::{Phase, Progress, State, Step, Sum2};
-use crate::{state_machine::TransitionOutcome, MessageEncoder};
+use crate::{
+    state_machine::{Phase, Progress, State, Step, Sum2, TransitionOutcome},
+    MessageEncoder,
+};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Sum {

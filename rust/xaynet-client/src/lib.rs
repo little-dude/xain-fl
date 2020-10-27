@@ -6,9 +6,13 @@ extern crate serde;
 extern crate tracing;
 
 mod message_encoder;
+pub(crate) use message_encoder::MessageEncoder;
+
 mod settings;
-pub mod state_machine;
-pub use message_encoder::MessageEncoder;
+pub use settings::Settings;
+
+mod state_machine;
+pub use state_machine::{StateMachine, TransitionOutcome};
+
 mod traits;
-pub(crate) use traits::IO;
 pub use traits::{ModelStore, XaynetClient};

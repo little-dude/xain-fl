@@ -8,12 +8,11 @@ use xaynet_core::{
     message::Payload,
 };
 
-use super::{Awaiting, NewRound, Sum, Sum2, Update};
+use super::{Awaiting, NewRound, Sum, Sum2, Update, IO};
 use crate::{
     settings::{MaxMessageSize, Settings},
     state_machine::{StateMachine, TransitionOutcome},
     MessageEncoder,
-    IO,
 };
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -70,7 +69,7 @@ pub trait Step {
 #[macro_export]
 macro_rules! try_progress {
     ($progress:expr) => {{
-        use $crate::state_machine::{phases::Progress, TransitionOutcome};
+        use $crate::state_machine::{Progress, TransitionOutcome};
         match $progress {
             // No progress can be made. Return the state machine as is
             Progress::Stuck(phase) => return TransitionOutcome::Pending(phase.into()),

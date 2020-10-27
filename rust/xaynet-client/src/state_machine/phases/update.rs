@@ -7,8 +7,10 @@ use xaynet_core::{
     SumDict,
 };
 
-use super::{Phase, Progress, Step};
-use crate::{state_machine::TransitionOutcome, MessageEncoder, IO};
+use crate::{
+    state_machine::{Phase, Progress, Step, TransitionOutcome, IO},
+    MessageEncoder,
+};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Update {
