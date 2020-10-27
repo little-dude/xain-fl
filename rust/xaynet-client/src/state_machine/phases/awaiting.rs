@@ -1,15 +1,12 @@
 use super::{Phase, Step};
-use crate::state_machine::{StateMachineIO, TransitionOutcome};
+use crate::state_machine::TransitionOutcome;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Awaiting;
 
 #[async_trait]
-impl<IO> Step<IO> for Phase<Awaiting, IO>
-where
-    IO: StateMachineIO,
-{
-    async fn step(mut self) -> TransitionOutcome<IO> {
+impl Step for Phase<Awaiting> {
+    async fn step(mut self) -> TransitionOutcome {
         info!("awaiting task");
         return TransitionOutcome::Pending(self.into());
     }

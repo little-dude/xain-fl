@@ -8,10 +8,7 @@ use xaynet_core::{
 };
 
 use super::{Phase, Progress, Step};
-use crate::{
-    state_machine::{io::StateMachineIO, TransitionOutcome},
-    MessageEncoder,
-};
+use crate::{state_machine::TransitionOutcome, MessageEncoder, IO};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Update {
@@ -59,11 +56,8 @@ impl Update {
 }
 
 #[async_trait]
-impl<IO> Step<IO> for Phase<Update, IO>
-where
-    IO: StateMachineIO,
-{
-    async fn step(mut self) -> TransitionOutcome<IO> {
+impl Step for Phase<Update> {
+    async fn step(mut self) -> TransitionOutcome {
         self = try_progress!(self.fetch_sum_dict().await);
         self = try_progress!(self.load_model().await);
         self = try_progress!(self.mask_model());
@@ -88,11 +82,8 @@ where
     }
 }
 
-impl<IO> Phase<Update, IO>
-where
-    IO: StateMachineIO,
-{
-    async fn fetch_sum_dict(mut self) -> Progress<Update, IO> {
+impl Phase<Update> {
+    async fn fetch_sum_dict(mut self) -> Progress<Update> {
         if self.state.phase.has_fetched_sum_dict() {
             return Progress::Continue(self);
         }
@@ -113,7 +104,7 @@ where
         }
     }
 
-    async fn load_model(mut self) -> Progress<Update, IO> {
+    async fn load_model(mut self) -> Progress<Update> {
         if self.state.phase.has_loaded_model() {
             return Progress::Continue(self);
         }
@@ -136,7 +127,7 @@ where
     }
 
     /// Generate a mask seed and mask a local model.
-    fn mask_model(mut self) -> Progress<Update, IO> {
+    fn mask_model(mut self) -> Progress<Update> {
         if self.state.phase.has_masked_model() {
             return Progress::Continue(self);
         }
@@ -149,7 +140,7 @@ where
     }
 
     // Create a local seed dictionary from a sum dictionary.
-    fn build_seed_dict(mut self) -> Progress<Update, IO> {
+    fn build_seed_dict(mut self) -> Progress<Update> {
         if self.state.phase.has_built_seed_dict() {
             return Progress::Continue(self);
         }
@@ -168,7 +159,7 @@ where
         Progress::Updated(self.into())
     }
 
-    fn compose_update_message(mut self) -> Progress<Update, IO> {
+    fn compose_update_message(mut self) -> Progress<Update> {
         debug!("composing update message");
         let update = UpdateMessage {
             sum_signature: self.state.phase.sum_signature,

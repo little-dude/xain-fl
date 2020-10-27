@@ -4,10 +4,7 @@ use xaynet_core::{
 };
 
 use super::{Phase, Progress, State, Step, Sum2};
-use crate::{
-    state_machine::{io::StateMachineIO, TransitionOutcome},
-    MessageEncoder,
-};
+use crate::{state_machine::TransitionOutcome, MessageEncoder};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Sum {
@@ -27,11 +24,8 @@ impl Sum {
 }
 
 #[async_trait]
-impl<IO> Step<IO> for Phase<Sum, IO>
-where
-    IO: StateMachineIO,
-{
-    async fn step(mut self) -> TransitionOutcome<IO> {
+impl Step for Phase<Sum> {
+    async fn step(mut self) -> TransitionOutcome {
         info!("sum task");
 
         self = try_progress!(self.compose_sum_message());
@@ -53,11 +47,8 @@ where
     }
 }
 
-impl<IO> Phase<Sum, IO>
-where
-    IO: StateMachineIO,
-{
-    pub fn compose_sum_message(mut self) -> Progress<Sum, IO> {
+impl Phase<Sum> {
+    pub fn compose_sum_message(mut self) -> Progress<Sum> {
         if self.state.phase.message.is_some() {
             return Progress::Continue(self);
         }
@@ -70,8 +61,8 @@ where
         Progress::Updated(self.into())
     }
 
-    pub fn into_sum2(self) -> Phase<Sum2, IO> {
+    pub fn into_sum2(self) -> Phase<Sum2> {
         let sum2 = Sum2::new(self.state.phase.ephm_keys, self.state.phase.sum_signature);
-        Phase::<Sum2, IO>::new(State::new(self.state.shared, sum2), self.io)
+        Phase::<Sum2>::new(State::new(self.state.shared, sum2), self.io)
     }
 }

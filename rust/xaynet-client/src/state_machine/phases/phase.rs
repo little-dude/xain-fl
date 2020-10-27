@@ -11,8 +11,9 @@ use xaynet_core::{
 use super::{Awaiting, NewRound, Sum, Sum2, Update};
 use crate::{
     settings::{MaxMessageSize, Settings},
-    state_machine::{io::StateMachineIO, StateMachine, TransitionOutcome},
+    state_machine::{StateMachine, TransitionOutcome},
     MessageEncoder,
+    IO,
 };
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -29,12 +30,11 @@ impl<P> State<P> {
     }
 }
 
-#[derive(Debug)]
-pub struct Phase<P, IO> {
-    pub state: State<P>,
+pub struct Phase<P> {
+    pub(in crate::state_machine) state: State<P>,
     /// Opaque client for performing IO tasks: talking with the
     /// coordinator API, loading models, etc.
-    pub io: IO,
+    pub(in crate::state_machine) io: Box<dyn IO>,
 }
 
 /// Store for all the data that are common to all the phases
@@ -63,8 +63,8 @@ impl SharedState {
 /// in progress being made, the resulting updated state machine is
 /// returned as `Progress::Some`.
 #[async_trait]
-pub trait Step<IO> {
-    async fn step(mut self) -> TransitionOutcome<IO>;
+pub trait Step {
+    async fn step(mut self) -> TransitionOutcome;
 }
 
 #[macro_export]
@@ -83,33 +83,31 @@ macro_rules! try_progress {
 }
 
 /// Represent the presence of absence of progress being made during a phase.
-pub enum Progress<P, IO> {
+pub enum Progress<P> {
     /// No progress can be made currently.
-    Stuck(Phase<P, IO>),
+    Stuck(Phase<P>),
     /// More work needs to be done for progress to be made
-    Continue(Phase<P, IO>),
+    Continue(Phase<P>),
     /// Progress has been made and resulted in this new state machine
-    Updated(StateMachine<IO>),
+    Updated(StateMachine),
 }
 
-impl<P, IO> Phase<P, IO>
+impl<P> Phase<P>
 where
-    IO: StateMachineIO,
-    Phase<P, IO>: Step<IO> + Into<StateMachine<IO>>,
+    Phase<P>: Step + Into<StateMachine>,
 {
-    pub async fn step(mut self) -> TransitionOutcome<IO> {
+    pub async fn step(mut self) -> TransitionOutcome {
         match self.check_round_freshness().await {
             RoundFreshness::Unknown => TransitionOutcome::Pending(self.into()),
             RoundFreshness::Outdated => {
                 info!("a new round started: updating the round parameters and resetting the state machine");
                 TransitionOutcome::Complete(
-                    Phase::<NewRound, IO>::new(State::new(self.state.shared, NewRound), self.io)
-                        .into(),
+                    Phase::<NewRound>::new(State::new(self.state.shared, NewRound), self.io).into(),
                 )
             }
             RoundFreshness::Fresh => {
                 debug!("round is still fresh, continuing from where we left off");
-                <Self as Step<_>>::step(self).await
+                <Self as Step>::step(self).await
             }
         }
     }
@@ -134,18 +132,15 @@ where
     }
 }
 
-impl<P, IO> Phase<P, IO> {
-    pub fn new(state: State<P>, io: IO) -> Self {
+impl<P> Phase<P> {
+    pub(in crate::state_machine) fn new(state: State<P>, io: Box<dyn IO>) -> Self {
         Self { state, io }
     }
 }
 
-impl<P, IO> Phase<P, IO>
-where
-    IO: StateMachineIO,
-{
-    pub(super) fn into_awaiting(self) -> Phase<Awaiting, IO> {
-        Phase::<Awaiting, IO>::new(State::new(self.state.shared, Awaiting), self.io)
+impl<P> Phase<P> {
+    pub(super) fn into_awaiting(self) -> Phase<Awaiting> {
+        Phase::<Awaiting>::new(State::new(self.state.shared, Awaiting), self.io)
     }
 
     pub(super) async fn send_message(
@@ -202,7 +197,7 @@ pub enum SerializableState {
     Sum2(State<Sum2>),
 }
 
-impl<IO, P> Into<SerializableState> for Phase<P, IO>
+impl<P> Into<SerializableState> for Phase<P>
 where
     State<P>: Into<SerializableState>,
 {

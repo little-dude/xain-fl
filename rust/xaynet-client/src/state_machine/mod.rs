@@ -1,35 +1,30 @@
 use derive_more::From;
 
-mod io;
-pub use io::{CoordinatorClient, ModelStore, StateMachineIO};
+use crate::traits::{boxed_io, ModelStore, XaynetClient};
 pub(self) mod phases;
 
 use crate::settings::Settings;
-use io::PhaseIO;
 use phases::{Awaiting, NewRound, Phase, SerializableState, SharedState, State, Sum, Sum2, Update};
 
 /// A potential transition from one state to another.
-pub enum TransitionOutcome<IO> {
+pub enum TransitionOutcome {
     /// A transition is pending. The state machine has not changed
-    Pending(StateMachine<IO>),
+    Pending(StateMachine),
     /// A transition occured and resulted in this new state machine
-    Complete(StateMachine<IO>),
+    Complete(StateMachine),
 }
 
-#[derive(From, Debug)]
-pub enum StateMachine<IO> {
-    NewRound(Phase<NewRound, IO>),
-    Awaiting(Phase<Awaiting, IO>),
-    Sum(Phase<Sum, IO>),
-    Update(Phase<Update, IO>),
-    Sum2(Phase<Sum2, IO>),
+#[derive(From)]
+pub enum StateMachine {
+    NewRound(Phase<NewRound>),
+    Awaiting(Phase<Awaiting>),
+    Sum(Phase<Sum>),
+    Update(Phase<Update>),
+    Sum2(Phase<Sum2>),
 }
 
-impl<IO> StateMachine<IO>
-where
-    IO: StateMachineIO,
-{
-    pub async fn transition(self) -> TransitionOutcome<IO> {
+impl StateMachine {
+    pub async fn transition(self) -> TransitionOutcome {
         match self {
             StateMachine::NewRound(phase) => phase.step().await,
             StateMachine::Awaiting(phase) => phase.step().await,
@@ -50,31 +45,29 @@ where
     }
 }
 
-impl<T, U> StateMachine<PhaseIO<T, U>>
-where
-    T: CoordinatorClient,
-    U: ModelStore,
-{
-    pub fn new(settings: Settings, coordinator: T, model_store: U) -> Self {
-        let io = PhaseIO::new(coordinator, model_store);
+impl StateMachine {
+    pub fn new<T, U>(settings: Settings, coordinator: T, model_store: U) -> Self
+    where
+        T: XaynetClient + Send + 'static,
+        U: ModelStore + Send + 'static,
+    {
+        let io = boxed_io(coordinator, model_store);
         let state = State::new(SharedState::new(settings), Awaiting);
-        Phase::<_, _>::new(state, io).into()
+        Phase::<_>::new(state, io).into()
     }
 
-    pub fn restore(state: SerializableState, coordinator: T, model_store: U) -> Self {
-        let io = PhaseIO::new(coordinator, model_store);
+    pub fn restore<T, U>(state: SerializableState, coordinator: T, model_store: U) -> Self
+    where
+        T: XaynetClient + Send + 'static,
+        U: ModelStore + Send + 'static,
+    {
+        let io = boxed_io(coordinator, model_store);
         match state {
-            SerializableState::NewRound(state) => {
-                Phase::<NewRound, PhaseIO<T, U>>::new(state, io).into()
-            }
-            SerializableState::Awaiting(state) => {
-                Phase::<Awaiting, PhaseIO<T, U>>::new(state, io).into()
-            }
-            SerializableState::Sum(state) => Phase::<Sum, PhaseIO<T, U>>::new(state, io).into(),
-            SerializableState::Sum2(state) => Phase::<Sum2, PhaseIO<T, U>>::new(state, io).into(),
-            SerializableState::Update(state) => {
-                Phase::<Update, PhaseIO<T, U>>::new(state, io).into()
-            }
+            SerializableState::NewRound(state) => Phase::<_>::new(state, io).into(),
+            SerializableState::Awaiting(state) => Phase::<_>::new(state, io).into(),
+            SerializableState::Sum(state) => Phase::<_>::new(state, io).into(),
+            SerializableState::Sum2(state) => Phase::<_>::new(state, io).into(),
+            SerializableState::Update(state) => Phase::<_>::new(state, io).into(),
         }
     }
 }

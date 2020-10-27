@@ -9,3 +9,6 @@ mod message_encoder;
 mod settings;
 pub mod state_machine;
 pub use message_encoder::MessageEncoder;
+mod traits;
+pub(crate) use traits::IO;
+pub use traits::{ModelStore, XaynetClient};

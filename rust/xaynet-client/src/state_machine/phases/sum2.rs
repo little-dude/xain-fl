@@ -6,10 +6,7 @@ use xaynet_core::{
 };
 
 use super::{Phase, Progress, Step};
-use crate::{
-    state_machine::{io::StateMachineIO, TransitionOutcome},
-    MessageEncoder,
-};
+use crate::{state_machine::TransitionOutcome, MessageEncoder, IO};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Sum2 {
@@ -34,9 +31,7 @@ impl Sum2 {
             message: None,
         }
     }
-}
 
-impl Sum2 {
     fn has_fetched_seed_dict(&self) -> bool {
         self.seed_dict.is_some() || self.has_fetched_mask_length()
     }
@@ -58,11 +53,8 @@ impl Sum2 {
     }
 }
 
-impl<IO> Phase<Sum2, IO>
-where
-    IO: StateMachineIO,
-{
-    async fn fetch_mask_length(mut self) -> Progress<Sum2, IO> {
+impl Phase<Sum2> {
+    async fn fetch_mask_length(mut self) -> Progress<Sum2> {
         if self.state.phase.has_fetched_mask_length() {
             return Progress::Continue(self);
         }
@@ -84,7 +76,7 @@ where
         }
     }
 
-    async fn fetch_seed_dict(mut self) -> Progress<Sum2, IO> {
+    async fn fetch_seed_dict(mut self) -> Progress<Sum2> {
         if self.state.phase.has_fetched_seed_dict() {
             return Progress::Continue(self);
         }
@@ -105,7 +97,7 @@ where
         }
     }
 
-    fn decrypt_seeds(mut self) -> Progress<Sum2, IO> {
+    fn decrypt_seeds(mut self) -> Progress<Sum2> {
         if self.state.phase.has_decrypted_seeds() {
             return Progress::Continue(self);
         }
@@ -133,7 +125,7 @@ where
         }
     }
 
-    fn aggregate_masks(mut self) -> Progress<Sum2, IO> {
+    fn aggregate_masks(mut self) -> Progress<Sum2> {
         if self.state.phase.has_aggregated_masks() {
             return Progress::Continue(self);
         }
@@ -154,7 +146,7 @@ where
         Progress::Updated(self.into())
     }
 
-    fn compose_sum2_message(mut self) -> Progress<Sum2, IO> {
+    fn compose_sum2_message(mut self) -> Progress<Sum2> {
         if self.state.phase.has_composed_message() {
             return Progress::Continue(self);
         }
@@ -169,11 +161,8 @@ where
 }
 
 #[async_trait]
-impl<IO> Step<IO> for Phase<Sum2, IO>
-where
-    IO: StateMachineIO,
-{
-    async fn step(mut self) -> TransitionOutcome<IO> {
+impl Step for Phase<Sum2> {
+    async fn step(mut self) -> TransitionOutcome {
         info!("sum2 task");
         self = try_progress!(self.fetch_mask_length().await);
         self = try_progress!(self.fetch_seed_dict().await);
