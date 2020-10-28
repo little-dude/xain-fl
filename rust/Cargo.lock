@@ -588,6 +588,7 @@ dependencies = [
 name = "examples"
 version = "0.0.0"
 dependencies = [
+ "async-trait",
  "sodiumoxide",
  "structopt",
  "tokio",
@@ -595,6 +596,7 @@ dependencies = [
  "tracing-subscriber",
  "xaynet-client",
  "xaynet-core",
+ "xaynet-sdk",
 ]
 
 [[package]]
@@ -3454,17 +3456,14 @@ dependencies = [
  "bincode",
  "bytes",
  "derive_more",
- "num",
  "reqwest",
  "serde 1.0.116",
- "serde_json",
  "sodiumoxide",
  "thiserror",
  "tokio",
- "tokio-test",
- "tower-test",
  "tracing",
  "xaynet-core",
+ "xaynet-sdk",
 ]
 
 [[package]]
@@ -3498,6 +3497,27 @@ version = "0.1.0"
 dependencies = [
  "quote",
  "syn",
+]
+
+[[package]]
+name = "xaynet-sdk"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "bincode",
+ "bytes",
+ "derive_more",
+ "num",
+ "reqwest",
+ "serde 1.0.116",
+ "serde_json",
+ "sodiumoxide",
+ "thiserror",
+ "tokio",
+ "tokio-test",
+ "tower-test",
+ "tracing",
+ "xaynet-core",
 ]
 
 [[package]]

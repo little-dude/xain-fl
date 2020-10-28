@@ -39,34 +39,55 @@ where
     U: ModelStore + Send + 'static,
 {
     async fn get_round_params(&mut self) -> Result<RoundParameters, Box<dyn Error>> {
-        self.0.get_round_params().await
+        self.0
+            .get_round_params()
+            .await
+            .map_err(|e| Box::new(e) as Box<dyn Error>)
     }
 
     async fn get_sums(&mut self) -> Result<Option<SumDict>, Box<dyn Error>> {
-        self.0.get_sums().await
+        self.0
+            .get_sums()
+            .await
+            .map_err(|e| Box::new(e) as Box<dyn Error>)
     }
 
     async fn get_seeds(
         &mut self,
         pk: SumParticipantPublicKey,
     ) -> Result<Option<UpdateSeedDict>, Box<dyn Error>> {
-        self.0.get_seeds(pk).await
+        self.0
+            .get_seeds(pk)
+            .await
+            .map_err(|e| Box::new(e) as Box<dyn Error>)
     }
 
     async fn get_mask_length(&mut self) -> Result<Option<u64>, Box<dyn Error>> {
-        self.0.get_mask_length().await
+        self.0
+            .get_mask_length()
+            .await
+            .map_err(|e| Box::new(e) as Box<dyn Error>)
     }
 
     async fn get_model(&mut self) -> Result<Option<Model>, Box<dyn Error>> {
-        self.0.get_model().await
+        self.0
+            .get_model()
+            .await
+            .map_err(|e| Box::new(e) as Box<dyn Error>)
     }
 
     async fn send_message(&mut self, msg: Vec<u8>) -> Result<(), Box<dyn Error>> {
-        self.0.send_message(msg).await
+        self.0
+            .send_message(msg)
+            .await
+            .map_err(|e| Box::new(e) as Box<dyn Error>)
     }
 
     async fn load_model(&mut self) -> Result<Option<Model>, Box<dyn Error>> {
-        self.1.load_model().await
+        self.1
+            .load_model()
+            .await
+            .map_err(|e| Box::new(e) as Box<dyn Error>)
     }
 }
 

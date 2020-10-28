@@ -3,6 +3,7 @@
 members = [
     "xaynet",
     "xaynet-server",
+    "xaynet-sdk",
     "xaynet-client",
     "xaynet-core",
     "xaynet-macros",
