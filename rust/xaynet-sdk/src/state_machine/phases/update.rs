@@ -1,3 +1,6 @@
+use std::ops::Deref;
+
+use derive_more::From;
 use xaynet_core::{
     crypto::Signature,
     mask::{MaskObject, MaskSeed, Masker, Model},
@@ -12,13 +15,50 @@ use crate::{
     MessageEncoder,
 };
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(From)]
+pub enum LocalModel {
+    Dyn(Box<dyn AsRef<Model> + Send>),
+    Owned(Model),
+}
+
+impl AsRef<Model> for LocalModel {
+    fn as_ref(&self) -> &Model {
+        match self {
+            LocalModel::Dyn(model) => model.deref().as_ref(),
+            LocalModel::Owned(model) => model,
+        }
+    }
+}
+
+impl serde::ser::Serialize for LocalModel {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::ser::Serializer,
+    {
+        match self {
+            LocalModel::Dyn(model) => model.as_ref().as_ref().serialize(serializer),
+            LocalModel::Owned(model) => model.serialize(serializer),
+        }
+    }
+}
+
+impl<'de> serde::de::Deserialize<'de> for LocalModel {
+    fn deserialize<D>(deserializer: D) -> Result<LocalModel, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        let model = <Model as serde::de::Deserialize>::deserialize(deserializer)?;
+        Ok(LocalModel::Owned(model))
+    }
+}
+
+#[derive(Serialize, Deserialize)]
 pub struct Update {
     pub sum_signature: ParticipantTaskSignature,
     pub update_signature: ParticipantTaskSignature,
     pub sum_dict: Option<SumDict>,
     pub seed_dict: Option<LocalSeedDict>,
-    pub model: Option<Model>,
+    pub model: Option<LocalModel>,
     pub mask: Option<(MaskSeed, MaskObject)>,
     pub message: Option<MessageEncoder>,
 }
@@ -114,7 +154,7 @@ impl Phase<Update> {
         debug!("loading local model");
         match self.io.load_model().await {
             Ok(Some(model)) => {
-                self.state.private.model = Some(model);
+                self.state.private.model = Some(model.into());
                 Progress::Updated(self.into())
             }
             Ok(None) => {
@@ -137,7 +177,7 @@ impl Phase<Update> {
         let masker = Masker::new(config, config);
         let model = self.state.private.model.take().unwrap();
         let scalar = self.state.shared.scalar;
-        self.state.private.mask = Some(masker.mask(scalar, model));
+        self.state.private.mask = Some(masker.mask(scalar, model.as_ref()));
         Progress::Updated(self.into())
     }
 

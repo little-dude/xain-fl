@@ -4,7 +4,7 @@ use thiserror::Error;
 use xaynet_core::{
     common::RoundParameters,
     crypto::SigningKeyPair,
-    mask::MaskConfig,
+    mask::{MaskConfig, Model},
     message::Payload,
 };
 
@@ -33,7 +33,7 @@ pub struct Phase<P> {
     pub(in crate::state_machine) state: State<P>,
     /// Opaque client for performing IO tasks: talking with the
     /// coordinator API, loading models, etc.
-    pub(in crate::state_machine) io: Box<dyn IO>,
+    pub(in crate::state_machine) io: Box<dyn IO<Model = Box<dyn AsRef<Model> + Send>>>,
 }
 
 /// Store for all the data that are common to all the phases
@@ -132,7 +132,10 @@ where
 }
 
 impl<P> Phase<P> {
-    pub(in crate::state_machine) fn new(state: State<P>, io: Box<dyn IO>) -> Self {
+    pub(in crate::state_machine) fn new(
+        state: State<P>,
+        io: Box<dyn IO<Model = Box<dyn AsRef<Model> + Send>>>,
+    ) -> Self {
         Self { state, io }
     }
 }

@@ -9,7 +9,7 @@ use xaynet_core::{
 #[async_trait]
 pub trait ModelStore {
     type Error: ::std::error::Error;
-    type Model: AsRef<Model>;
+    type Model: AsRef<Model> + Send;
 
     async fn load_model(&mut self) -> Result<Option<Self::Model>, Self::Error>;
 }

@@ -361,7 +361,7 @@ impl Masker {
     /// proceeds in reverse order.
     ///
     /// [`unmask()`]: struct.Aggregation.html#method.unmask
-    pub fn mask(self, scalar: f64, model: Model) -> (MaskSeed, MaskObject) {
+    pub fn mask(self, scalar: f64, model: &Model) -> (MaskSeed, MaskObject) {
         let (random_int, mut random_ints) = self.random_ints();
         let Self {
             config_model,
@@ -383,10 +383,10 @@ impl Masker {
 
         // mask the (scaled) weights
         let masked_weights = model
-            .into_iter()
+            .iter()
             .zip(&mut random_ints)
             .map(|(weight, rand_int)| {
-                let scaled = scalar_clamped * &weight;
+                let scaled = scalar_clamped * weight;
                 let scaled_clamped = clamp(&scaled, &lower_bound, higher_bound);
                 // PANIC_SAFE: shifted weight is guaranteed to be non-negative
                 let shifted = ((scaled_clamped + &add_shift) * &exp_shift)

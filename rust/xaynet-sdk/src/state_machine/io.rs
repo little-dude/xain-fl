@@ -12,7 +12,9 @@ use crate::{ModelStore, XaynetClient};
 
 #[async_trait]
 pub(crate) trait IO: Send + 'static {
-    async fn load_model(&mut self) -> Result<Option<Model>, Box<dyn Error>>;
+    type Model;
+
+    async fn load_model(&mut self) -> Result<Option<Self::Model>, Box<dyn Error>>;
     async fn get_round_params(&mut self) -> Result<RoundParameters, Box<dyn Error>>;
     async fn get_sums(&mut self) -> Result<Option<SumDict>, Box<dyn Error>>;
     async fn get_seeds(
@@ -24,7 +26,10 @@ pub(crate) trait IO: Send + 'static {
     async fn send_message(&mut self, msg: Vec<u8>) -> Result<(), Box<dyn Error>>;
 }
 
-pub(crate) fn boxed_io<T, U>(xaynet_client: T, model_store: U) -> Box<dyn IO>
+pub(crate) fn boxed_io<T, U>(
+    xaynet_client: T,
+    model_store: U,
+) -> Box<dyn IO<Model = Box<dyn AsRef<Model> + Send>>>
 where
     T: XaynetClient + Send + 'static,
     U: ModelStore + Send + 'static,
@@ -38,6 +43,17 @@ where
     T: XaynetClient + Send + 'static,
     U: ModelStore + Send + 'static,
 {
+    // type Model = <U as ModelStore>::Model;
+    type Model = Box<dyn AsRef<Model> + Send>;
+
+    async fn load_model(&mut self) -> Result<Option<Self::Model>, Box<dyn Error>> {
+        self.1
+            .load_model()
+            .await
+            .map_err(|e| Box::new(e) as Box<dyn Error>)
+            .map(|opt| opt.map(|model| Box::new(model) as Box<dyn AsRef<Model> + Send>))
+    }
+
     async fn get_round_params(&mut self) -> Result<RoundParameters, Box<dyn Error>> {
         self.0
             .get_round_params()
@@ -82,17 +98,17 @@ where
             .await
             .map_err(|e| Box::new(e) as Box<dyn Error>)
     }
-
-    async fn load_model(&mut self) -> Result<Option<Model>, Box<dyn Error>> {
-        self.1
-            .load_model()
-            .await
-            .map_err(|e| Box::new(e) as Box<dyn Error>)
-    }
 }
 
 #[async_trait]
-impl IO for Box<dyn IO> {
+impl IO for Box<dyn IO<Model = Box<dyn AsRef<Model> + Send>>> {
+    // type Model = <<Self as std::ops::Deref<dyn IO>>::Target as IO>::Model;
+    type Model = Box<dyn AsRef<Model> + Send>;
+
+    async fn load_model(&mut self) -> Result<Option<Self::Model>, Box<dyn Error>> {
+        self.as_mut().load_model().await
+    }
+
     async fn get_round_params(&mut self) -> Result<RoundParameters, Box<dyn Error>> {
         self.as_mut().get_round_params().await
     }
@@ -118,9 +134,5 @@ impl IO for Box<dyn IO> {
 
     async fn send_message(&mut self, msg: Vec<u8>) -> Result<(), Box<dyn Error>> {
         self.as_mut().send_message(msg).await
-    }
-
-    async fn load_model(&mut self) -> Result<Option<Model>, Box<dyn Error>> {
-        self.as_mut().load_model().await
     }
 }
