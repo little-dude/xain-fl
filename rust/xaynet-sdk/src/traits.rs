@@ -6,6 +6,13 @@ use xaynet_core::{
     UpdateSeedDict,
 };
 
+pub trait Notify {
+    fn notify_new_round(&mut self) {}
+    fn notify_sum(&mut self) {}
+    fn notify_update(&mut self) {}
+    fn notify_idle(&mut self) {}
+}
+
 #[async_trait]
 pub trait ModelStore {
     type Error: ::std::error::Error;
@@ -13,13 +20,6 @@ pub trait ModelStore {
 
     async fn load_model(&mut self) -> Result<Option<Self::Model>, Self::Error>;
 }
-
-pub trait Notifier {
-    fn notify_new_round(&mut self) {}
-    fn notify_update(&mut self) {}
-}
-
-impl Notifier for () {}
 
 /// An interface that API clients implement
 #[async_trait]

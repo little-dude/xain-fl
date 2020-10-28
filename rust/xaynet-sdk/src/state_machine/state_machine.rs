@@ -1,6 +1,6 @@
 use derive_more::From;
 
-use crate::{settings::Settings, ModelStore, XaynetClient};
+use crate::{settings::Settings, ModelStore, Notify, XaynetClient};
 
 use super::{
     boxed_io,
@@ -55,22 +55,29 @@ impl StateMachine {
 }
 
 impl StateMachine {
-    pub fn new<T, U>(settings: Settings, coordinator: T, model_store: U) -> Self
+    pub fn new<X, M, N>(settings: Settings, xaynet_client: X, model_store: M, notifier: N) -> Self
     where
-        T: XaynetClient + Send + 'static,
-        U: ModelStore + Send + 'static,
+        X: XaynetClient + Send + 'static,
+        M: ModelStore + Send + 'static,
+        N: Notify + Send + 'static,
     {
-        let io = boxed_io(coordinator, model_store);
+        let io = boxed_io(xaynet_client, model_store, notifier);
         let state = State::new(SharedState::new(settings), Awaiting);
         Phase::<_>::new(state, io).into()
     }
 
-    pub fn restore<T, U>(state: SerializableState, coordinator: T, model_store: U) -> Self
+    pub fn restore<X, M, N>(
+        state: SerializableState,
+        xaynet_client: X,
+        model_store: M,
+        notifier: N,
+    ) -> Self
     where
-        T: XaynetClient + Send + 'static,
-        U: ModelStore + Send + 'static,
+        X: XaynetClient + Send + 'static,
+        M: ModelStore + Send + 'static,
+        N: Notify + Send + 'static,
     {
-        let io = boxed_io(coordinator, model_store);
+        let io = boxed_io(xaynet_client, model_store, notifier);
         match state {
             SerializableState::NewRound(state) => Phase::<_>::new(state, io).into(),
             SerializableState::Awaiting(state) => Phase::<_>::new(state, io).into(),

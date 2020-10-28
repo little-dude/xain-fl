@@ -8,7 +8,23 @@ use xaynet_core::{
     UpdateSeedDict,
 };
 
-use crate::{ModelStore, XaynetClient};
+use crate::{ModelStore, Notify, XaynetClient};
+
+pub(crate) fn boxed_io<X, M, N>(
+    xaynet_client: X,
+    model_store: M,
+    notifier: N,
+) -> Box<dyn IO<Model = Box<dyn AsRef<Model> + Send>>>
+where
+    X: XaynetClient + Send + 'static,
+    M: ModelStore + Send + 'static,
+    N: Notify + Send + 'static,
+{
+    Box::new((xaynet_client, model_store, notifier))
+}
+
+pub struct DefaultNotifier;
+impl Notify for DefaultNotifier {}
 
 #[async_trait]
 pub(crate) trait IO: Send + 'static {
@@ -24,26 +40,20 @@ pub(crate) trait IO: Send + 'static {
     async fn get_mask_length(&mut self) -> Result<Option<u64>, Box<dyn Error>>;
     async fn get_model(&mut self) -> Result<Option<Model>, Box<dyn Error>>;
     async fn send_message(&mut self, msg: Vec<u8>) -> Result<(), Box<dyn Error>>;
-}
 
-pub(crate) fn boxed_io<T, U>(
-    xaynet_client: T,
-    model_store: U,
-) -> Box<dyn IO<Model = Box<dyn AsRef<Model> + Send>>>
-where
-    T: XaynetClient + Send + 'static,
-    U: ModelStore + Send + 'static,
-{
-    Box::new((xaynet_client, model_store))
+    fn notify_new_round(&mut self);
+    fn notify_sum(&mut self);
+    fn notify_update(&mut self);
+    fn notify_idle(&mut self);
 }
 
 #[async_trait]
-impl<T, U> IO for (T, U)
+impl<X, M, N> IO for (X, M, N)
 where
-    T: XaynetClient + Send + 'static,
-    U: ModelStore + Send + 'static,
+    X: XaynetClient + Send + 'static,
+    M: ModelStore + Send + 'static,
+    N: Notify + Send + 'static,
 {
-    // type Model = <U as ModelStore>::Model;
     type Model = Box<dyn AsRef<Model> + Send>;
 
     async fn load_model(&mut self) -> Result<Option<Self::Model>, Box<dyn Error>> {
@@ -98,11 +108,26 @@ where
             .await
             .map_err(|e| Box::new(e) as Box<dyn Error>)
     }
+
+    fn notify_new_round(&mut self) {
+        self.2.notify_new_round()
+    }
+
+    fn notify_sum(&mut self) {
+        self.2.notify_sum()
+    }
+
+    fn notify_update(&mut self) {
+        self.2.notify_update()
+    }
+
+    fn notify_idle(&mut self) {
+        self.2.notify_idle()
+    }
 }
 
 #[async_trait]
 impl IO for Box<dyn IO<Model = Box<dyn AsRef<Model> + Send>>> {
-    // type Model = <<Self as std::ops::Deref<dyn IO>>::Target as IO>::Model;
     type Model = Box<dyn AsRef<Model> + Send>;
 
     async fn load_model(&mut self) -> Result<Option<Self::Model>, Box<dyn Error>> {
@@ -134,5 +159,21 @@ impl IO for Box<dyn IO<Model = Box<dyn AsRef<Model> + Send>>> {
 
     async fn send_message(&mut self, msg: Vec<u8>) -> Result<(), Box<dyn Error>> {
         self.as_mut().send_message(msg).await
+    }
+
+    fn notify_new_round(&mut self) {
+        self.as_mut().notify_new_round()
+    }
+
+    fn notify_sum(&mut self) {
+        self.as_mut().notify_sum()
+    }
+
+    fn notify_update(&mut self) {
+        self.as_mut().notify_update()
+    }
+
+    fn notify_idle(&mut self) {
+        self.as_mut().notify_idle()
     }
 }

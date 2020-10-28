@@ -15,6 +15,6 @@ mod state_machine;
 pub use state_machine::{StateMachine, TransitionOutcome};
 
 mod traits;
-pub use traits::{ModelStore, XaynetClient};
+pub use traits::{ModelStore, Notifier, XaynetClient};
 
 // pub mod agents;

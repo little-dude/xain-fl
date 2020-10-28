@@ -122,6 +122,7 @@ impl Phase<Sum2> {
             }
             Err(_) => {
                 warn!("failed to decrypt mask seeds, going back to waiting phase");
+                self.io.notify_idle();
                 Progress::Updated(self.into_awaiting().into())
             }
         }

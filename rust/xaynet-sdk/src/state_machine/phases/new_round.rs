@@ -38,13 +38,15 @@ impl Phase<NewRound> {
         sk.sign_detached(&[seed, data].concat())
     }
 
-    fn into_sum(self, sum_signature: Signature) -> Phase<Sum> {
+    fn into_sum(mut self, sum_signature: Signature) -> Phase<Sum> {
         let sum = Sum::new(sum_signature);
+        self.io.notify_sum();
         Phase::<Sum>::new(State::new(self.state.shared, sum), self.io)
     }
 
-    fn into_update(self, sum_signature: Signature, update_signature: Signature) -> Phase<Update> {
+    fn into_update(mut self, sum_signature: Signature, update_signature: Signature) -> Phase<Update> {
         let update = Update::new(sum_signature, update_signature);
+        self.io.notify_update();
         Phase::<Update>::new(State::new(self.state.shared, update), self.io)
     }
 }

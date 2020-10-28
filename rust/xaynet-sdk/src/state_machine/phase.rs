@@ -100,6 +100,7 @@ where
             RoundFreshness::Unknown => TransitionOutcome::Pending(self.into()),
             RoundFreshness::Outdated => {
                 info!("a new round started: updating the round parameters and resetting the state machine");
+                self.io.notify_new_round();
                 TransitionOutcome::Complete(
                     Phase::<NewRound>::new(State::new(self.state.shared, NewRound), self.io).into(),
                 )

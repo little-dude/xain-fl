@@ -120,6 +120,7 @@ impl Step for Phase<Update> {
         }
 
         info!("going back to awaiting phase");
+        self.io.notify_idle();
         TransitionOutcome::Complete(self.into_awaiting().into())
     }
 }
