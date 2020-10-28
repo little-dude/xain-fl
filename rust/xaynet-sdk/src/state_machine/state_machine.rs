@@ -1,6 +1,6 @@
 use derive_more::From;
 
-use crate::{settings::Settings, ModelStore, Notify, XaynetClient};
+use crate::{settings::AgentSettings, ModelStore, Notify, XaynetClient};
 
 use super::{
     boxed_io,
@@ -55,7 +55,12 @@ impl StateMachine {
 }
 
 impl StateMachine {
-    pub fn new<X, M, N>(settings: Settings, xaynet_client: X, model_store: M, notifier: N) -> Self
+    pub fn new<X, M, N>(
+        settings: AgentSettings,
+        xaynet_client: X,
+        model_store: M,
+        notifier: N,
+    ) -> Self
     where
         X: XaynetClient + Send + 'static,
         M: ModelStore + Send + 'static,

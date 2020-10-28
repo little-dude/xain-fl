@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate async_trait;
 
+use std::sync::Arc;
 #[cfg(feature = "tls")]
 use std::{
     fs,
@@ -23,13 +24,13 @@ use xaynet_core::{
 };
 use xaynet_sdk::XaynetClient;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 /// A client that communicates with the coordinator's API via HTTP(S).
 pub struct Client {
     /// HTTP client
     client: reqwest::Client,
     /// Coordinator URL
-    address: String,
+    address: Arc<String>,
 }
 
 impl Client {
@@ -59,7 +60,7 @@ impl Client {
 
         Ok(Self {
             client,
-            address: address.into(),
+            address: Arc::new(address.into()),
         })
     }
 

@@ -128,6 +128,7 @@ impl Step for Phase<Update> {
 impl Phase<Update> {
     async fn fetch_sum_dict(mut self) -> Progress<Update> {
         if self.state.private.has_fetched_sum_dict() {
+            debug!("already fetched the sum dictionary, continuing");
             return Progress::Continue(self);
         }
         debug!("fetching sum dictionary");
@@ -172,8 +173,10 @@ impl Phase<Update> {
     /// Generate a mask seed and mask a local model.
     fn mask_model(mut self) -> Progress<Update> {
         if self.state.private.has_masked_model() {
+            debug!("already computed the masked model, continuing");
             return Progress::Continue(self);
         }
+        info!("computing masked model");
         let config = self.state.shared.mask_config;
         let masker = Masker::new(config, config);
         let model = self.state.private.model.take().unwrap();
@@ -185,10 +188,11 @@ impl Phase<Update> {
     // Create a local seed dictionary from a sum dictionary.
     fn build_seed_dict(mut self) -> Progress<Update> {
         if self.state.private.has_built_seed_dict() {
+            debug!("already built the seed dictionary, continuing");
             return Progress::Continue(self);
         }
         let mask_seed = &self.state.private.mask.as_ref().unwrap().0;
-        debug!("building local seed dictionary");
+        info!("building local seed dictionary");
         let seeds = self
             .state
             .private
@@ -203,6 +207,10 @@ impl Phase<Update> {
     }
 
     fn compose_update_message(mut self) -> Progress<Update> {
+        if self.state.private.has_composed_message() {
+            debug!("already composed the update message, continuing");
+            return Progress::Continue(self);
+        }
         debug!("composing update message");
         let update = UpdateMessage {
             sum_signature: self.state.private.sum_signature,

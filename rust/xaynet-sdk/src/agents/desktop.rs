@@ -1,11 +1,11 @@
 use std::time::Duration;
 
 use crate::{
-    settings::Settings,
+    settings::AgentSettings,
     state_machine::{StateMachine, TransitionOutcome},
     ModelStore,
-    XaynetClient,
     Notify,
+    XaynetClient,
 };
 
 use tokio::time::delay_for;
@@ -13,13 +13,23 @@ use tokio::time::delay_for;
 pub struct Agent(StateMachine);
 
 impl Agent {
-    pub fn new<X, M, N>(settings: Settings, xaynet_client: X, model_store: M, notify: N) -> Self
+    pub fn new<X, M, N>(
+        settings: AgentSettings,
+        xaynet_client: X,
+        model_store: M,
+        notify: N,
+    ) -> Self
     where
         X: XaynetClient + Send + 'static,
         M: ModelStore + Send + 'static,
         N: Notify + Send + 'static,
     {
-        Agent(StateMachine::new(settings, xaynet_client, model_store, notify))
+        Agent(StateMachine::new(
+            settings,
+            xaynet_client,
+            model_store,
+            notify,
+        ))
     }
 
     pub async fn run(mut self, tick: Duration) {

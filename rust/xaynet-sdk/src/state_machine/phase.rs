@@ -10,7 +10,7 @@ use xaynet_core::{
 
 use super::{Awaiting, NewRound, Sum, Sum2, Update, IO};
 use crate::{
-    settings::{MaxMessageSize, Settings},
+    settings::{AgentSettings, MaxMessageSize},
     state_machine::{StateMachine, TransitionOutcome},
     MessageEncoder,
 };
@@ -47,7 +47,7 @@ pub struct SharedState {
 }
 
 impl SharedState {
-    pub fn new(settings: Settings) -> Self {
+    pub fn new(settings: AgentSettings) -> Self {
         Self {
             keys: settings.keys,
             mask_config: settings.mask_config,

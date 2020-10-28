@@ -44,7 +44,11 @@ impl Phase<NewRound> {
         Phase::<Sum>::new(State::new(self.state.shared, sum), self.io)
     }
 
-    fn into_update(mut self, sum_signature: Signature, update_signature: Signature) -> Phase<Update> {
+    fn into_update(
+        mut self,
+        sum_signature: Signature,
+        update_signature: Signature,
+    ) -> Phase<Update> {
         let update = Update::new(sum_signature, update_signature);
         self.io.notify_update();
         Phase::<Update>::new(State::new(self.state.shared, update), self.io)

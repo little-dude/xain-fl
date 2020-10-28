@@ -9,7 +9,7 @@ mod message_encoder;
 pub(crate) use message_encoder::MessageEncoder;
 
 mod settings;
-pub use settings::Settings;
+pub use settings::AgentSettings;
 
 mod state_machine;
 pub use state_machine::{StateMachine, TransitionOutcome};

@@ -593,6 +593,7 @@ dependencies = [
  "structopt",
  "tokio",
  "tracing",
+ "tracing-futures",
  "tracing-subscriber",
  "xaynet-client",
  "xaynet-core",
